@@ -1,0 +1,20 @@
+# Copy to .github/workflows/ai-code-guard.yml in a repository that has the skill
+# committed at .claude/skills/ai-code-guard. Needs an ANTHROPIC_API_KEY secret.
+# The job fails when the review finds a critical or high problem with high confidence.
+name: AI Code Guard
+on: pull_request
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the review diffs against the merge base with the target branch
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install -g @anthropic-ai/claude-code
+      - run: node .claude/skills/ai-code-guard/scripts/ci.mjs --base "origin/${{ github.base_ref }}"
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

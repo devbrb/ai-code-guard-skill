@@ -1,0 +1,14 @@
+import { NextResponse } from 'next/server';
+import { withAuth } from '@/lib/auth';
+import { taskRepository } from '@/repositories/taskRepository';
+
+type Ctx = { params: Promise<{ id: string }> };
+
+export const POST = withAuth<Ctx>(async (_req, user, ctx) => {
+  const { id } = await ctx.params;
+  const task = await taskRepository.reopen(id, user.id);
+  if (!task) {
+    return NextResponse.json({ success: false, message: 'Task not found' }, { status: 404 });
+  }
+  return NextResponse.json({ success: true, data: task });
+});
