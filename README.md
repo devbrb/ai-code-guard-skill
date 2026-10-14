@@ -4,18 +4,6 @@ An agent skill that reviews a code change against the repository it lands in. It
 
 It targets JavaScript / TypeScript, React, Next.js and Node.js repositories.
 
-## Layout
-
-```
-skill/ai-code-guard/    the skill: SKILL.md, references/, scripts/
-  scripts/collect.mjs     gathers the diff and tool output for the review
-  scripts/stop-hook.mjs   Claude Code hook: review unreviewed changes before finishing
-  scripts/ci.mjs          headless review with an exit code
-install.mjs             installs or updates the skill in one project
-examples/               a GitHub Actions workflow
-evals/                  fixture app, cases, and the runner
-```
-
 ## Quick install
 
 Paste this in a terminal. It installs the skill for your user and turns on automatic review, and there is nothing else to set up:
@@ -68,10 +56,10 @@ Running it again updates the copy in place.
 |---|---|---|
 | Claude Code | `.claude/skills/` | yes |
 | opencode | `.agents/skills/`, `.claude/skills/`, `.opencode/skills/` | yes |
-| Codex | `.agents/skills/` | no |
-| Cursor | `.agents/skills/`, `.cursor/skills/` | no |
-| GitHub Copilot | `.agents/skills/`, `.claude/skills/`, `.github/skills/` | no |
-| Gemini CLI | `.agents/skills/`, `.gemini/skills/` | no |
+| Codex | `.agents/skills/` | yes |
+| Cursor | `.agents/skills/`, `.cursor/skills/` | yes |
+| GitHub Copilot | `.agents/skills/`, `.claude/skills/`, `.github/skills/` | yes |
+| Gemini CLI | `.agents/skills/`, `.gemini/skills/` | yes |
 
 The skill needs Node 18+ and git. It uses ESLint and `npm audit` output when they are available in the reviewed repository.
 
@@ -101,32 +89,3 @@ Exit code 0 means PASS or WARN, 1 means BLOCK (a critical or high finding with h
 The review agent reads the pull request's code and can run `node` and `git`, so run this only on pull requests from people who can already push to the repository.
 
 Set `GUARD_AGENT_CMD` to use an agent other than Claude Code, for example `opencode run`.
-
-## Evals
-
-```
-node evals/run.mjs --dry      # no agent: checks that collect.mjs sees each case's files
-node evals/run.mjs            # all cases, through the agent (19 headless sessions)
-node evals/run.mjs client-secret n-plus-one-db
-```
-
-Thirteen cases seed one problem each and six are clean changes that tempt a false positive. The run passes when at least 80% of the problems are caught and at most 1 clean change gets a finding of medium severity or above. Raw agent output is saved in `evals/results/`.
-
-To score a different agent, set `GUARD_AGENT_CMD` to a command that reads the prompt on stdin and prints the reply, and `GUARD_SKILLS_DIR` to where that agent looks for skills:
-
-```
-GUARD_AGENT_CMD="opencode run" GUARD_SKILLS_DIR=".agents/skills" node evals/run.mjs
-```
-
-To add a case, create `evals/cases/<name>/files/` with the changed files at their paths in the fixture, and an `expected.json`:
-
-```
-{ "category": ["performance"], "file": "src/hooks/useTasks.ts", "minSeverity": "high" }
-{ "clean": true }
-```
-
-## Known limits
-
-- Agents often wrap the JSON output in a code fence, and weaker models sometimes emit invalid JSON. The scripts parse from the first `{` to the last `}` and treat anything unparseable as "no review".
-- Weaker models are noisier. They report medium findings on clean changes more often than Claude does.
-- No secret scanner is wired in yet. Literal secrets are found by the agent reading the diff.

@@ -25,11 +25,25 @@ The question for every added line that uses a raw primitive: **is there already 
 
 4. **Say what is lost.** Open the bypassed layer and name what it does that the new code does not: attaches credentials, redirects on 401, maps errors, invalidates a cache, scopes a query to the current user. If the layer adds nothing the new code lacks, the finding is weak.
 
+## Ownership (IDOR)
+
+A route can be behind authentication and still let any signed-in user read or change anyone's record, because it looks the record up by the id in the request and never checks who owns it. Agents write this often: the auth wrapper is copied from a sibling, the scoping in the query is not.
+
+For every added route, server action or repository method that takes a record id from the request (`params`, the query string, the body, form data):
+
+1. **Find how siblings scope.** Open sibling routes and the repository methods they call. The usual shapes are a query condition on the session user (`WHERE id = $1 AND owner_id = $2`, `where: { id, userId: session.user.id }`), a lookup followed by a check (`if (task.ownerId !== user.id) return 403`), or a policy helper (`can(user, 'edit', task)`).
+2. **Follow the new code to the query.** Trace the id from the request to the SQL or ORM call. It is a finding when no step on that path ties the record to the session user while comparable siblings do. A repository method added without a user parameter, next to methods that take one, is the usual sign.
+3. **Say what an attacker does.** For example: "any signed-in user can rename another user's task by sending its id".
+
+Severity critical, rule `bypass.ownership`, category `security`. Evidence is the sibling that scopes (file and line of its condition) and the new query that does not.
+
+Not a finding: records that are public by design, a route behind a role check that grants access to every record (an admin route), an id taken from the session rather than the request, and a repository where no comparable query scopes by user (then the whole repository works that way, and it is not this change's fault).
+
 ## Severity
 
 | What was bypassed | Severity |
 |---|---|
-| Authentication or authorisation that every sibling uses | critical |
+| Authentication or authorisation that every sibling uses, or the ownership check described above | critical |
 | Input validation or another security layer | high |
 | A data, service or fetching layer (loses error handling, caching, consistency) | medium |
 | An existing helper, duplicated | low |

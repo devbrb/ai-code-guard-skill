@@ -49,6 +49,22 @@ for (const f of files.values()) {
   if (f.status === 'D' || statSync(f.path).size > 1_000_000) continue;
   const text = readFileSync(f.path, 'utf8');
   if (f.untracked) f.addedLines = [[1, text.split('\n').length]];
+  if (/(^|\/)package\.json$/.test(f.path)) {
+    const deps = (json) => {
+      try {
+        const p = JSON.parse(json);
+        return { ...p.dependencies, ...p.devDependencies, ...p.peerDependencies, ...p.optionalDependencies };
+      } catch {
+        return {};
+      }
+    };
+    let before = '{}';
+    try {
+      before = execFileSync('git', ['show', `${base}:${f.path}`], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+    } catch {} // new file: everything in it is added
+    const old = deps(before);
+    f.addedDependencies = Object.keys(deps(text)).filter((name) => !(name in old));
+  }
   if (!isCode(f.path)) continue;
   // the directive must be the first statement; only comments may come before it
   f.clientDirective = /^\s*(?:\/\/.*\r?\n\s*|\/\*[\s\S]*?\*\/\s*)*['"]use client['"]/.test(text);

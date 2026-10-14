@@ -25,7 +25,7 @@ With no argument it reviews uncommitted changes against `HEAD`. Pass `--base ori
 
 It prints one JSON object:
 
-- `files`: each changed file with its status, the line ranges that were added, whether it opens with a `'use client'` directive, and the environment variables it reads.
+- `files`: each changed file with its status, the line ranges that were added, whether it opens with a `'use client'` directive, the environment variables it reads, and for a `package.json` the dependencies it adds.
 - `diff`: the unified diff of tracked files. New untracked files appear in `files` but not in `diff`, so read those in full.
 - `tools`: raw output of ESLint and `npm audit` where they are installed and relevant. `unavailable` means the tool is not installed, not that it found nothing.
 
@@ -33,9 +33,13 @@ If the script cannot run, get the same facts from `git status` and `git diff`. I
 
 The review is read-only. Do not create or modify files in the repository, including redirecting command output into one: a stray file shows up as a changed file in the next review.
 
-### 2. Read the stated conventions
+### 2. Read the stated conventions and suppressions
 
 If `.ai-code-guard/conventions.md`, `AGENTS.md` or `CLAUDE.md` exists at the repository root, read it. A stated convention outranks one you infer.
+
+If `.ai-code-guard/ignore` exists, read it as it is at the base, with `git show <base>:.ai-code-guard/ignore` (`base` is in the `collect.mjs` output), not from the working tree. Each line is `<rule> <path>`: a rule id from step 6 or `*` for every rule, then a file path or a glob such as `scripts/**`. `#` starts a comment. Drop any finding whose rule and file match a line, and do not mention it.
+
+Entries the change itself adds to the ignore file do not apply, because a change must not be able to silence its own review. Report the finding they would have hidden as usual, and say in its evidence that the change also adds a suppression for it.
 
 ### 3. Look up what already exists
 
@@ -46,21 +50,23 @@ For each changed file, before judging it:
 - For each function the added lines call, open its definition and keep following it until you reach the real I/O (an HTTP request, a database query) or know there is none.
 - For each raw primitive the added lines use (an HTTP call, a database client, an environment variable, hand-written formatting or validation), search the repository for how the rest of the code does that.
 
-### 4. Run the five checks
+### 4. Run the seven checks
 
 Read the reference file before reporting a finding of that kind. Each one also lists what is *not* a finding, which matters as much as what is.
 
 | Check | Look closer when the added lines contain | Reference |
 |---|---|---|
 | Fan-out / N+1 | I/O inside a loop, `.map`, `.forEach`, or a component rendered per item | `references/fanout-n-plus-one.md` |
-| Abstraction bypass | a raw primitive where the repository has a layer for it, a new route or handler, a new helper | `references/abstraction-bypass.md` |
+| Abstraction bypass | a raw primitive where the repository has a layer for it, a new route or handler, a new helper, a query or route that takes a record id from the request | `references/abstraction-bypass.md` |
 | Secrets | an environment variable in browser code, a public-prefixed variable, a literal credential | `references/secrets.md` |
+| Injection | a query, shell command, HTML string, `eval` or redirect built from a value | `references/injection.md` |
 | Maintainability | an error response or thrown error, a log call, a literal limit or status, a new function or export | `references/maintainability.md` |
+| Dependencies | `addedDependencies` on a `package.json`, or an import of a package | `references/dependencies.md` |
 | Missing tests | a risky change with no test in the diff | below |
 
 **Missing tests.** A change is risky when it adds or alters a mutation endpoint, a bulk operation, authentication or permission logic, money handling, or data deletion. Report it only when both hold: the diff contains no test that exercises the new behaviour, and the repository does test comparable existing code (find the sibling's test file and cite it). If the repository has no tests for that kind of code, the absence is its norm, not this change's fault, so do not report it. Name the cases that are missing (for a bulk operation: zero items, one item, a large batch, partial failure, an unauthorised caller) instead of asking for "more tests".
 
-**Tool output.** Treat it as fact. Report a tool finding only if it is on an added line and falls under one of the five checks or is a vulnerability in a dependency this change adds. Leave style rules to the linter.
+**Tool output.** Treat it as fact. Report a tool finding only if it is on an added line and falls under one of the seven checks or is a vulnerability in a dependency this change adds. Leave style rules to the linter.
 
 ### 5. Keep only what you can evidence
 
@@ -74,10 +80,22 @@ Severity:
 
 | Severity | Use for |
 |---|---|
-| critical | a secret committed or reachable from the browser; a route or action that skips the authentication or authorisation its siblings use |
-| high | I/O repeated once per item of a collection with no enforced upper bound; any other bypassed security or validation layer |
+| critical | a secret committed or reachable from the browser; a route or action that skips the authentication, authorisation or ownership check its siblings use; request input reaching a SQL query, shell command or `eval` unescaped |
+| high | I/O repeated once per item of a collection with no enforced upper bound; any other bypassed security or validation layer; request input reaching HTML or a redirect unescaped; an import of a package that does not exist |
 | medium | I/O repeated per item of a small bounded collection; a skipped layer that costs error handling, caching or consistency; a risky change with no tests; an inconsistency that breaks a caller |
 | low | a duplicated helper; error handling or logging unlike its siblings; dead code the change adds |
+
+Every finding has a rule id. Use the one that fits; it is what `.ai-code-guard/ignore` matches against.
+
+| Check | Rule ids |
+|---|---|
+| Fan-out / N+1 | `fanout` |
+| Abstraction bypass | `bypass.auth`, `bypass.ownership`, `bypass.validation`, `bypass.layer`, `bypass.helper` |
+| Secrets | `secret.hardcoded`, `secret.public-prefix`, `secret.server-env-in-client`, `secret.client-imports-server` |
+| Injection | `injection.sql`, `injection.command`, `injection.code`, `injection.html`, `injection.redirect` |
+| Maintainability | `consistency.errors`, `consistency.logging`, `consistency.constant`, `dead-code` |
+| Dependencies | `dependency.heavy`, `dependency.duplicate`, `dependency.missing`, `dependency.nonexistent` |
+| Missing tests | `tests.missing` |
 
 Confidence is `high`, `medium` or `low`, never a percentage. `high` means you opened the code on both sides and the evidence is quoted. `medium` means the pattern is clear but something is unverified, and you say what. `low` means a suspicion worth a look.
 
@@ -94,7 +112,7 @@ Architecture     <…>
 Maintainability  <…>
 Tests            <…>
 
-1. HIGH · performance · confidence high
+1. HIGH · performance · fanout · confidence high
    src/hooks/useTasks.ts:21
    Problem: one POST is sent per selected task.
    Evidence: taskService.complete → taskApi.completeTask → POST /tasks/:id/complete (src/api/taskApi.ts:8)
@@ -114,6 +132,7 @@ When the request asks for JSON, a program will parse your whole reply, so the re
     {
       "severity": "critical" | "high" | "medium" | "low",
       "category": "security" | "performance" | "architecture" | "maintainability" | "tests",
+      "rule": "fanout",
       "confidence": "high" | "medium" | "low",
       "file": "path/from/repo/root",
       "line": 21,
