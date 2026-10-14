@@ -1,6 +1,6 @@
 # AI Code Guard
 
-An agent skill that reviews a code change against the repository it lands in. It looks for five things: request fan-out and N+1 calls, bypassed existing abstractions (including auth wrappers), secrets hardcoded or exposed to the browser, risky changes with no tests, and maintainability problems relative to the repository (error handling or logging unlike its siblings, duplicated constants, dead code the change adds).
+An agent skill that reviews a code change against the repository it lands in. It looks for seven things: request fan-out and N+1 calls, bypassed existing abstractions (including auth wrappers and missing ownership checks), secrets hardcoded or exposed to the browser, injection (SQL, shell, `eval`, HTML, redirects), dependencies added for a few functions or that do not exist, risky changes with no tests, and maintainability problems relative to the repository (error handling or logging unlike its siblings, duplicated constants, dead code the change adds).
 
 It targets JavaScript / TypeScript, React, Next.js and Node.js repositories.
 
@@ -9,27 +9,27 @@ It targets JavaScript / TypeScript, React, Next.js and Node.js repositories.
 Paste this in a terminal. It installs the skill for your user and turns on automatic review, and there is nothing else to set up:
 
 ```
-npx github:<user>/<repo> --global --hook
+npx ai-code-guard-skill --global --hook
 ```
 
 It needs Node 18+ and git. Restart Claude Code afterwards, then ask it to make a code change: it reviews its own edits before finishing. Leave off `--hook` to review only on request (`/ai-code-guard`).
 
 ## Other ways to install
 
-From a git repository (replace `<repo url>` with where you host it; the first two lines are needed once per machine):
+From the git repository (the clone is needed once per machine):
 
 ```
-git clone <repo url> ai-code-guard
+git clone https://github.com/Bhavesh210996/ai-code-guard-skill.git ai-code-guard
 node ai-code-guard/install.mjs <project dir> --hook --local
 ```
 
 or without cloning:
 
 ```
-npx github:<user>/<repo> <project dir> --hook --local
+npx ai-code-guard-skill <project dir> --hook --local
 ```
 
-To update, `git pull` in the clone and run the installer again (or just re-run the `npx` line).
+To update, `git pull` in the clone and run the installer again (or just re-run the `npx` line with `ai-code-guard-skill@latest`).
 
 To install once for your whole user instead of per project, use `--global` (no project folder). Nothing is then written inside any repository:
 

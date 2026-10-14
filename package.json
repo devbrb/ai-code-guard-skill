@@ -1,10 +1,21 @@
 {
-  "name": "ai-code-guard",
+  "name": "ai-code-guard-skill",
   "version": "0.1.0",
   "description": "Agent skill that reviews code changes against the repository they land in",
   "type": "module",
-  "bin": { "ai-code-guard": "install.mjs" },
-  "files": ["install.mjs", "skill"],
-  "engines": { "node": ">=18" },
-  "license": "UNLICENSED"
+  "bin": {
+    "ai-code-guard-skill": "install.mjs"
+  },
+  "files": [
+    "install.mjs",
+    "skill"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Bhavesh210996/ai-code-guard-skill.git"
+  }
 }
