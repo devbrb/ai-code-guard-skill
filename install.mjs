@@ -35,7 +35,7 @@ console.log(`installed: ${dest}`);
 
 const ours = (entry) => JSON.stringify(entry).includes('stop-hook.mjs');
 const read = (file) => (existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {}); // throws before any write if a file does not parse
-// earlier versions also used PostToolUse; drop our entries from every event
+// drop our entries from every event, so an update never leaves outdated ones
 function strip(settings) {
   for (const [event, list] of Object.entries(settings.hooks ?? {})) {
     settings.hooks[event] = list.filter((e) => !ours(e));
@@ -68,8 +68,9 @@ if (args.includes('--hook')) {
   // a user-level hook cannot refer to a project, so it gets the absolute path
   const script = global ? dest.replaceAll('\\', '/') : `$CLAUDE_PROJECT_DIR/${skillsDir}/ai-code-guard`;
   const hook = { type: 'command', command: `node "${script}/scripts/stop-hook.mjs"` };
-  // one script for both events: UserPromptSubmit snapshots the tree, Stop reviews what changed since
-  for (const event of ['UserPromptSubmit', 'Stop']) ((settings.hooks ??= {})[event] ??= []).push({ hooks: [hook] });
+  // one script for all events: tool hooks record what this session edited, Stop reviews those files
+  const on = { PreToolUse: 'Bash', PostToolUse: 'Edit|Write|MultiEdit|Bash', Stop: undefined };
+  for (const [event, matcher] of Object.entries(on)) ((settings.hooks ??= {})[event] ??= []).push({ ...(matcher && { matcher }), hooks: [hook] });
   if (JSON.stringify(settings) !== before) {
     mkdirSync(dirname(file), { recursive: true });
     writeFileSync(file, JSON.stringify(settings, null, 2) + '\n');

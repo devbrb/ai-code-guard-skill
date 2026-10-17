@@ -1,6 +1,6 @@
 {
   "name": "ai-code-guard-skill",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Agent skill that reviews code changes against the repository they land in",
   "type": "module",
   "bin": {

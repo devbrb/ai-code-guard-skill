@@ -37,7 +37,7 @@ To install once for your whole user instead of per project, use `--global` (no p
 node ai-code-guard/install.mjs --global --hook
 ```
 
-The skill goes to `~/.claude/skills` and the hook to `~/.claude/settings.json`, where existing settings are kept. With `--hook` the review runs in every repository you open with Claude Code, so leave `--hook` off if you want the skill only on request (`/ai-code-guard`). To remove it, delete `~/.claude/skills/ai-code-guard` and the two `stop-hook.mjs` entries from `~/.claude/settings.json`.
+The skill goes to `~/.claude/skills` and the hook to `~/.claude/settings.json`, where existing settings are kept. With `--hook` the review runs in every repository you open with Claude Code, so leave `--hook` off if you want the skill only on request (`/ai-code-guard`). To remove it, delete `~/.claude/skills/ai-code-guard` and the `stop-hook.mjs` entries from `~/.claude/settings.json`.
 
 The per-project options:
 
@@ -67,16 +67,17 @@ Optionally describe your conventions in `.ai-code-guard/conventions.md` in the r
 
 ## Review automatically (Claude Code hook)
 
-`install.mjs --hook` adds two hook entries to the project's `.claude/settings.json`, both running `scripts/stop-hook.mjs`:
+`install.mjs --hook` adds hook entries to the project's `.claude/settings.json`, all running `scripts/stop-hook.mjs`:
 
-- **UserPromptSubmit** snapshots the content of every changed or new JS/TS file when you send a prompt.
-- **Stop** compares the tree with that snapshot when Claude finishes. If code files changed during the turn, it sends Claude back to review only those files, fix critical and high findings, and show the result.
+- **PostToolUse** (Edit, Write, MultiEdit) records each code file Claude edits, under the chat's session id.
+- **PreToolUse / PostToolUse** (Bash) diff the tree around each shell command, so files changed by formatters or generators are recorded too.
+- **Stop** reviews the files recorded for this chat. If there are any, it sends Claude back to review only those files, fix critical and high findings, and show the result.
 
-Because it compares file contents, it catches every kind of change: Claude's edit tools, shell commands, formatters, code generators. A turn that changes no code, such as a question or a discussion, is never reviewed, whatever else is uncommitted. Fixes Claude makes during the review are not reviewed again.
+Edits are attributed per chat: with two Claude Code chats open in one repository, only the chat that edited code is asked to review, and only its own files. A chat that only answers questions records nothing and is never reviewed. Fixes Claude makes during the review are not reviewed again.
 
-Two edge cases: a file you save in your editor while Claude is working counts as changed during the turn, and a file Claude commits during the turn drops out of the comparison.
+Two edge cases: files you save in your editor are not reviewed, and if two chats run shell commands that change files at the very same instant, a change can be attributed to the wrong chat.
 
-To remove the hook, delete both entries that mention `stop-hook.mjs` from `.claude/settings.json`.
+To remove the hook, delete the entries that mention `stop-hook.mjs` from `.claude/settings.json`.
 
 ## CI
 
