@@ -37,7 +37,11 @@ For every added route, server action or repository method that takes a record id
 
 Severity critical, rule `bypass.ownership`, category `security`. Evidence is the sibling that scopes (file and line of its condition) and the new query that does not.
 
-**When no sibling scopes by user.** If the new code takes a record id from the request, the records plainly belong to users (a `userId` or `ownerId` column or field), and no comparable query anywhere in the repository scopes by it, still report it: severity medium, confidence medium, rule `bypass.ownership`. Say that no existing check was found and ask the author to confirm that any signed-in user may access any record. Do not report it if the records have no owner field or are public by design.
+**A list of everyone's records.** A route that returns or changes a whole collection of user-owned records with no condition on the session user is the same finding, even though no id comes from the request. Report it as `bypass.ownership`; if it also has no limit, report `data.unbounded` separately.
+
+**What counts as a sibling.** A query on any model that scopes by the session user shows the repository knows how to do it, so it counts, even if no other query on this model does. Report critical with medium confidence and say which model the precedent is on.
+
+**When no query anywhere scopes by user.** If the new code takes a record id from the request, the records plainly belong to users (a `userId` or `ownerId` column or field), and no comparable query anywhere in the repository scopes by it, still report it: severity medium, confidence medium, rule `bypass.ownership`. Say that no existing check was found and ask the author to confirm that any signed-in user may access any record. Do not report it if the records have no owner field or are public by design.
 
 **Every ownership finding includes a test.** Put it in the Fix line: sign in as user A, request user B's record by id, and expect 403 or 404. Name the sibling's test file if one exists. This bug passes ordinary tests, so the finding must say which test would catch it.
 
