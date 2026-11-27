@@ -37,7 +37,11 @@ For every added route, server action or repository method that takes a record id
 
 Severity critical, rule `bypass.ownership`, category `security`. Evidence is the sibling that scopes (file and line of its condition) and the new query that does not.
 
-Not a finding: records that are public by design, a route behind a role check that grants access to every record (an admin route), an id taken from the session rather than the request, and a repository where no comparable query scopes by user (then the whole repository works that way, and it is not this change's fault).
+**When no sibling scopes by user.** If the new code takes a record id from the request, the records plainly belong to users (a `userId` or `ownerId` column or field), and no comparable query anywhere in the repository scopes by it, still report it: severity medium, confidence medium, rule `bypass.ownership`. Say that no existing check was found and ask the author to confirm that any signed-in user may access any record. Do not report it if the records have no owner field or are public by design.
+
+**Every ownership finding includes a test.** Put it in the Fix line: sign in as user A, request user B's record by id, and expect 403 or 404. Name the sibling's test file if one exists. This bug passes ordinary tests, so the finding must say which test would catch it.
+
+Not a finding: records that are public by design, a route behind a role check that grants access to every record (an admin route), an id taken from the session rather than the request, and records with no owner field.
 
 ## Severity
 
