@@ -10,7 +10,9 @@ import { readFileSync, statSync } from 'node:fs';
 const MAX = 200_000; // chars of diff / tool output passed on to the reviewer
 const args = process.argv.slice(2);
 const baseArg = args.includes('--base') ? args[args.indexOf('--base') + 1] : 'HEAD';
-const only = args.includes('--only') ? ['--', ...args.slice(args.indexOf('--only') + 1)] : [];
+// the skill's own install files (and the hook entry in settings) are never part of a review
+const own = [':(exclude).claude/skills/ai-code-guard', ':(exclude).agents/skills/ai-code-guard', ':(exclude).claude/settings*.json'];
+const only = ['--', ...(args.includes('--only') ? args.slice(args.indexOf('--only') + 1) : []), ...own];
 
 const git = (...a) =>
   execFileSync('git', ['-c', 'core.quotepath=off', '-c', 'core.safecrlf=false', ...a], { encoding: 'utf8', maxBuffer: 1 << 28 });
