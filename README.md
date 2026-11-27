@@ -1,6 +1,6 @@
 # AI Code Guard
 
-An agent skill that reviews a code change against the repository it lands in. It looks for seven things: request fan-out and N+1 calls, bypassed existing abstractions (including auth wrappers and missing ownership checks), secrets hardcoded or exposed to the browser, injection (SQL, shell, `eval`, HTML, redirects), dependencies added for a few functions or that do not exist, risky changes with no tests, and maintainability problems relative to the repository (error handling or logging unlike its siblings, duplicated constants, dead code the change adds).
+An agent skill that reviews a code change against the repository it lands in. It looks for nine things: request fan-out and N+1 calls, bypassed existing abstractions (including auth wrappers and missing ownership checks), secrets hardcoded or exposed to the browser, injection (SQL, shell, `eval`, HTML, redirects, SSRF, path traversal), auth and crypto basics (predictable tokens, weak password hashes, unverified JWTs, cookie and CORS settings, unlimited login attempts), data safety (mass assignment, client-trusted prices and roles, whole records returned or logged, unbounded list queries, check-then-write races), dependencies added for a few functions or that do not exist, risky changes with no tests, and maintainability problems relative to the repository (error handling or logging unlike its siblings, duplicated constants, dead code the change adds).
 
 It targets JavaScript / TypeScript, React, Next.js and Node.js repositories.
 

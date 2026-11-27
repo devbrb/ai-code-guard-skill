@@ -13,6 +13,8 @@ A value from outside the code is pasted into something that will be interpreted:
    | Code | `eval`, `new Function`, `vm.runIn*Context`, `setTimeout` with a string | `injection.code` |
    | HTML | `dangerouslySetInnerHTML`, `innerHTML`, `outerHTML`, `document.write`, `insertAdjacentHTML` | `injection.html` |
    | Redirect | `redirect()`, `NextResponse.redirect`, `res.redirect`, `location.href =` with a value from the request | `injection.redirect` |
+   | Outbound request (SSRF) | `fetch`, `axios`, `got`, `http.request` where the host or whole URL comes from the request | `injection.ssrf` |
+   | File path | `fs.readFile`, `createReadStream`, `res.sendFile`, `path.join`, `unlink` where the path or file name comes from the request | `injection.path` |
 
 2. **Trace the value back to its source.** Follow it to where it comes from. It is attacker-controlled when it comes from the request (`params`, `searchParams`, the body, headers, cookies, form data), from a URL in the browser, or from a stored field users can write (a task title, a comment). It is safe when it is a literal, a constant, an enum, or an identifier chosen from a fixed allowlist.
 
@@ -26,6 +28,7 @@ It is a finding when an attacker-controlled value reaches the sink without the r
 |---|---|
 | Request input reaching SQL, a shell command or code evaluation | critical |
 | Request input or a user-writable stored field reaching HTML, or request input choosing a redirect target | high |
+| Request input choosing the host of a server-side request (the server can be pointed at internal addresses or cloud metadata), or choosing a file path (`../../etc/passwd`, `.env`) | high |
 | A built query, command or HTML string whose input is not attacker-controlled today but comes from a function argument any caller can pass | medium |
 
 Category `security`.
@@ -38,10 +41,13 @@ The path from the source to the sink (for example "`q` from `searchParams` → `
 
 The repository's own safe way: a placeholder and a parameter, `execFile` with an argument array, the sanitiser it already uses, a relative-path check. For a dynamic identifier such as a sort column, which placeholders cannot carry, an allowlist of permitted names.
 
+For `injection.ssrf` the safe way is a host allowlist, or a check that rejects private, loopback and link-local addresses after resolving the name. For `injection.path` it is a fixed base directory plus a check that the resolved path still starts with it (`path.resolve` then `startsWith`), or a generated file name instead of the user's. A name run through `path.basename` only is safe when the directory is fixed.
+
 ## Not a finding
 
 - Interpolating a constant or a fixed column list, such as `` `SELECT ${COLUMNS} FROM tasks WHERE id = $1` ``.
 - An identifier picked from an allowlist (`const column = SORTABLE[req.sort] ?? 'due_date'`).
 - A tagged template that parameterises (`sql\`... ${id}\``, Prisma `$queryRaw\`...\``). The untagged and `Unsafe` variants are not this.
 - `dangerouslySetInnerHTML` with output that passed through the repository's sanitiser, or with content written by the developers (a CMS the team controls, a bundled Markdown file).
+- A request to a fixed host where the user supplies only a path segment or query value that is URL-encoded, and a file read from a fixed path or a name chosen from an allowlist.
 - Values going into JSX as children or attributes. React escapes them; only `href` with a `javascript:` URL from user input is a concern, and that is `injection.html`.

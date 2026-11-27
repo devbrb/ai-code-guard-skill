@@ -1,6 +1,6 @@
 ---
 name: ai-code-guard
-description: Review the current code changes against the repository that already exists, before commit or merge. Finds request fan-out and N+1 calls, bypassed existing abstractions (API clients, services, hooks, repositories, auth middleware), secrets hardcoded or exposed to the browser, risky changes shipped without tests, and maintainability problems relative to the repository (inconsistent error handling or logging, dead code). Use when asked to "review my changes", "guard this diff", "check this before I commit", after finishing a feature in a JavaScript/TypeScript, React, Next.js or Node.js repository, or in CI on a pull request.
+description: Review the current code changes against the repository that already exists, before commit or merge. Finds request fan-out and N+1 calls, bypassed existing abstractions (API clients, services, hooks, repositories, auth middleware), secrets hardcoded or exposed to the browser, mass assignment, client-trusted prices and roles, SSRF and path traversal, weak tokens, password hashes, JWTs and cookies, swallowed errors, sensitive fields in responses, unbounded list queries and check-then-write races, risky changes shipped without tests, and maintainability problems relative to the repository (inconsistent error handling or logging, dead code). Use when asked to "review my changes", "guard this diff", "check this before I commit", after finishing a feature in a JavaScript/TypeScript, React, Next.js or Node.js repository, or in CI on a pull request.
 ---
 
 # AI Code Guard
@@ -50,7 +50,7 @@ For each changed file, before judging it:
 - For each function the added lines call, open its definition and keep following it until you reach the real I/O (an HTTP request, a database query) or know there is none.
 - For each raw primitive the added lines use (an HTTP call, a database client, an environment variable, hand-written formatting or validation), search the repository for how the rest of the code does that.
 
-### 4. Run the seven checks
+### 4. Run the nine checks
 
 Read the reference file before reporting a finding of that kind. Each one also lists what is *not* a finding, which matters as much as what is.
 
@@ -59,14 +59,16 @@ Read the reference file before reporting a finding of that kind. Each one also l
 | Fan-out / N+1 | I/O inside a loop, `.map`, `.forEach`, or a component rendered per item | `references/fanout-n-plus-one.md` |
 | Abstraction bypass | a raw primitive where the repository has a layer for it, a new route or handler, a new helper, a query or route that takes a record id from the request | `references/abstraction-bypass.md` |
 | Secrets | an environment variable in browser code, a public-prefixed variable, a literal credential | `references/secrets.md` |
-| Injection | a query, shell command, HTML string, `eval` or redirect built from a value | `references/injection.md` |
+| Injection | a query, shell command, HTML string, `eval`, redirect, outbound request or file path built from a value | `references/injection.md` |
+| Auth and crypto | a token, hash, JWT, cookie, CORS setting or login route | `references/auth-crypto.md` |
+| Data safety | a price, role or user id read from the request, a request body passed whole to a create or update, a whole record returned or logged, a list query with no limit, a read followed by a write that depends on it | `references/data-safety.md` |
 | Maintainability | an error response or thrown error, a log call, a literal limit or status, a new function or export | `references/maintainability.md` |
 | Dependencies | `addedDependencies` on a `package.json`, or an import of a package | `references/dependencies.md` |
 | Missing tests | a risky change with no test in the diff | below |
 
-**Missing tests.** A change is risky when it adds or alters a mutation endpoint, a bulk operation, authentication or permission logic, money handling, or data deletion. Report it only when both hold: the diff contains no test that exercises the new behaviour, and the repository does test comparable existing code (find the sibling's test file and cite it). If the repository has no tests for that kind of code, the absence is its norm, not this change's fault, so do not report it. Name the cases that are missing (for a bulk operation: zero items, one item, a large batch, partial failure, an unauthorised caller) instead of asking for "more tests".
+**Missing tests.** A change is risky when it adds or alters a mutation endpoint, a bulk operation, authentication or permission logic, money handling, or data deletion. Report it only when both hold: the diff contains no test that exercises the new behaviour, and the repository does test comparable existing code (find the sibling's test file and cite it). If the repository has no tests for that kind of code, or no tests at all, the absence is its norm, not this change's fault, so do not report it. Name the cases that are missing (for a bulk operation: zero items, one item, a large batch, partial failure, an unauthorised caller) instead of asking for "more tests".
 
-**Tool output.** Treat it as fact. Report a tool finding only if it is on an added line and falls under one of the seven checks or is a vulnerability in a dependency this change adds. Leave style rules to the linter.
+**Tool output.** Treat it as fact. Report a tool finding only if it is on an added line and falls under one of the nine checks or is a vulnerability in a dependency this change adds. Leave style rules to the linter.
 
 ### 5. Keep only what you can evidence
 
@@ -80,8 +82,8 @@ Severity:
 
 | Severity | Use for |
 |---|---|
-| critical | a secret committed or reachable from the browser; a route or action that skips the authentication, authorisation or ownership check its siblings use; request input reaching a SQL query, shell command or `eval` unescaped |
-| high | I/O repeated once per item of a collection with no enforced upper bound; any other bypassed security or validation layer; request input reaching HTML or a redirect unescaped; an import of a package that does not exist |
+| critical | a secret committed or reachable from the browser; a route or action that skips the authentication, authorisation or ownership check its siblings use; request input reaching a SQL query, shell command or `eval` unescaped; a password hashed with a fast hash, a predictable reset token, an unverified JWT; a price, role or owner id taken from the request; a whole request body written to a record that has a role or owner field |
+| high | I/O repeated once per item of a collection with no enforced upper bound; any other bypassed security or validation layer; request input reaching HTML or a redirect unescaped; request input choosing an outbound URL or a file path; a credential in a response or log; a check-then-write race on money or stock; an import of a package that does not exist |
 | medium | I/O repeated per item of a small bounded collection; a skipped layer that costs error handling, caching or consistency; a risky change with no tests; an inconsistency that breaks a caller |
 | low | a duplicated helper; error handling or logging unlike its siblings; dead code the change adds |
 
@@ -92,8 +94,10 @@ Every finding has a rule id. Use the one that fits; it is what `.ai-code-guard/i
 | Fan-out / N+1 | `fanout` |
 | Abstraction bypass | `bypass.auth`, `bypass.ownership`, `bypass.validation`, `bypass.layer`, `bypass.helper` |
 | Secrets | `secret.hardcoded`, `secret.public-prefix`, `secret.server-env-in-client`, `secret.client-imports-server` |
-| Injection | `injection.sql`, `injection.command`, `injection.code`, `injection.html`, `injection.redirect` |
-| Maintainability | `consistency.errors`, `consistency.logging`, `consistency.constant`, `dead-code` |
+| Injection | `injection.sql`, `injection.command`, `injection.code`, `injection.html`, `injection.redirect`, `injection.ssrf`, `injection.path` |
+| Auth and crypto | `crypto.random`, `crypto.hash`, `crypto.jwt`, `crypto.cookie`, `crypto.cors`, `crypto.ratelimit` |
+| Data safety | `data.mass-assignment`, `data.exposure`, `data.client-trusted`, `data.unbounded`, `data.race` |
+| Maintainability | `consistency.errors`, `consistency.swallowed`, `consistency.logging`, `consistency.constant`, `dead-code` |
 | Dependencies | `dependency.heavy`, `dependency.duplicate`, `dependency.missing`, `dependency.nonexistent` |
 | Missing tests | `tests.missing` |
 
